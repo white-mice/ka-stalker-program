@@ -6,6 +6,8 @@ Features:
 * Logs program creations
 * Logs program updates
 * Logs program deletions
+* Logs comment creations
+* Logs comment deletions
 * Backs up new programs and backs up edits
 
 Data is stored locally. Can be configured to run on a mega.nz drive as well.
@@ -36,13 +38,11 @@ Username = (mega.nz username)
 Password = (password)
 ```
 
-Then edit `db-interface.js` and set `IS_USING_MEGA` to `true`.
+~~Then edit `src/Store.js` and set `IS_USING_MEGA` to `true`~~ already set to true,
+need to make it so it can use local fileystem again.
 
 **TODO**: Make mega.nz interfacing easier.
 
 ## Running
 Add the usernames of the users you want to stalk in `stalkList.json`, and then:
 `npm start`
-
-## TODO
-* need to add comment logging

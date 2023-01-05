@@ -81,8 +81,8 @@ export default class ProfileCache {
 
 	    } else if (this.projects.length == p.length) {
 	        // a project got updated
-	        let cachedHashes = this.projects.map(ProfileCache.#qHash);
-	        let newHashes = p.map(ProfileCache.#qHash);
+	        let cachedHashes = this.projects.map(ProfileCache.#hash);
+	        let newHashes = p.map(ProfileCache.#hash);
 	        let changedHashes = newHashes.filter(x => !cachedHashes.includes(x));
 	        
 	        let reprNum = (changedHashes.length == 1) ? "1 program" : changedHashes.length + " programs";
@@ -143,8 +143,8 @@ export default class ProfileCache {
 
 	    let curTime = new Date().toLocaleString();
 	    
-	    let A = f.map(ProfileCache.#qHash);
-	    let B = this.feedback.map(ProfileCache.#qHash);
+	    let A = f.map(ProfileCache.#hash);
+	    let B = this.feedback.map(ProfileCache.#hash);
 	    let diff1 = A.filter(v => !B.includes(v));
 	    let diff2 = B.filter(v => !A.includes(v));
 
