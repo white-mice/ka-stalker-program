@@ -1,7 +1,9 @@
 import * as API from "./API.js";
 import Store from "./Store.js";
+import secrets from "../secrets.json" assert {type: "json"}
 
 import chalk from "chalk";
+import { EmbedBuilder } from "discord.js";
 import { createHash } from "crypto";
 
 const dataRoot = Store.dataRoot;
@@ -16,7 +18,9 @@ export default class ProfileCache {
 		return JSON.stringify(a1) == JSON.stringify(a2);
 	}
 
-	constructor(username) {
+	#client;
+
+	constructor(username, client) {
 		return (async () => {
 			let p = await API.getUserProfile(username);
 
@@ -25,8 +29,15 @@ export default class ProfileCache {
 			this.kaid = p.kaid;
 			this.projects = await API.projectsAuthoredBy(this.kaid);
 			this.feedback = await API.feedbackByAuthor(this.kaid);
+
+			this.#client = client;
 			return this;
 		})()
+	}
+
+	log(msg) {
+		let c = this.#client.channels.cache.get(secrets.CHANNEL_ID);
+		c.send(msg);
 	}
 
 	async checkProjects() {
@@ -36,36 +47,45 @@ export default class ProfileCache {
 	    if (ProfileCache.#arrObjEq(this.projects, p)) { return; }
 
 	    let genMsg = (d) => {
-	        return "[" + chalk.blue(curTime) + "] " +
-	            chalk.green(this.username) + " " +
-	            d.t + " " +
-	            d.reprNum + ": " +
-	            d.projectIds;
+	        // return "[" + chalk.blue(curTime) + "] " +
+	        //     chalk.green(this.username) + " " +
+	        //     d.t + " " +
+	        //     d.reprNum + ": " +
+	        //     d.projectIds;
+	        return new EmbedBuilder()
+	        	.setColor(d.color)
+	        	.setTitle("Activity monitor")
+	        	.setAuthor({name: this.username})
+	        	.setDescription(`${d.action} ${d.reprNum} projects - ${d.projectIds}`)
+	        	.setTimestamp()
 	    }
 	    
-	    let cacheDiff = (t) => {
+	    let cacheDiff = (action) => {
 	        let cachedKaids = this.projects.map(x => x.id);
 	        let updatedKaids = p.map(x => x.id);
 	        let diff;
-	        if (t.includes("created")) {
+	        let color;
+	        if (action == "created") {
 	            // When new project(s) are made, they won't be in the cache
 	            diff = updatedKaids.filter(x => !cachedKaids.includes(x));
-	        } else if (t.includes("deleted")) {
+	            color = 0x11d610;
+	        } else if (action == "deleted") {
 	            // ...but vice versa for deleted ones
 	            diff = cachedKaids.filter(x => !updatedKaids.includes(x));
+	            color = 0xcc0000;
 	        } else {
-	            console.log("ERROR:", JSON.stringify({cachedKaids, updatedKaids, t}));
+	            this.log("ERROR: " + JSON.stringify({cachedKaids, updatedKaids, t}));
 	            process.exit(1);
 	        }
 	        let reprNum = (diff.length == 1) ? "1 program" : diff.length + " programs";
 	        let projectIds = diff.join(", ");
-	        let msg = genMsg({ t, reprNum, projectIds });
+	        let msg = genMsg({ reprNum, projectIds, color, action });
 	        return { diff, reprNum, projectIds, msg };
 	    }
 
 	    if (this.projects.length < p.length) {
 	        // new project
-	        let diff = cacheDiff(chalk.magenta.italic("created"));
+	        let diff = cacheDiff("created");
 
 	        // Save new projects
 	        let newScratchpads = await Promise.all(diff.diff.map(v => API.scratchpad(v)));
@@ -77,7 +97,7 @@ export default class ProfileCache {
 	            } catch {}
 	            Store.save(`${Date.now()}.json`, JSON.stringify(el), `${dataRoot}${this.username}/${el.id}/`);
 	        });
-	        console.log(diff.msg);
+	        this.log({embeds: [diff.msg]});
 
 	    } else if (this.projects.length == p.length) {
 	        // a project got updated
@@ -87,14 +107,14 @@ export default class ProfileCache {
 	        
 	        let reprNum = (changedHashes.length == 1) ? "1 program" : changedHashes.length + " programs";
 	        let projectIds = changedHashes.map((_, i) => p[i].id).join(", ");
-	        console.log(genMsg({ reprNum, projectIds, t: chalk.yellow.italic("updated") }))
+	        this.log({embeds: [genMsg({ reprNum, projectIds, color: 0xf1c232, action: "updated" })]})
 
 	        let changedScratchpads = await Promise.all(changedHashes.map((_,i)=>API.scratchpad(p[i].id)));
 	        changedScratchpads.forEach(el => {
 	            try {
 	                Store.save(`${Date.now()}.json`, JSON.stringify(el), `${dataRoot}${this.username}/${el.id}/`);
 	            } catch (e) {
-	                console.log(`[${chalk.blue(curTime)}] No previous backups found for ${el.id}. creating one...`);
+	                this.log(`No previous backups found for ${el.id}. creating one...`);
 	                Store.newDir(`${dataRoot}${this.username}/${el.id}`);
 	                Store.save(`${Date.now()}.json`, JSON.stringify(el), `${dataRoot}${this.username}/${el.id}/`);
 	            }
@@ -103,26 +123,26 @@ export default class ProfileCache {
 
 	    } else if (this.projects.length > p.length) {
 	        // a project(s) got deleted
-	        let diff = cacheDiff(chalk.red.italic("deleted"));
-	        console.log(diff.msg);
+	        let diff = cacheDiff("deleted");
+	        this.log({embeds: [diff.msg]});
 
 	        // check if we have backup program(s) in archive
 	        diff.diff.forEach(k => {
 	            let savedPrograms = Store.ls(dataRoot + this.username);
 	            if (!savedPrograms.includes(k)) {
-	                console.log(`[${chalk.blue(curTime)}] No backup was found for ${k}`);
-	                // console.log(`Store output: ${Store.ls(dataRoot + this.username)}`);
+	                this.log(`No backup was found for ${k}`);
+	                // this.log(`Store output: ${Store.ls(dataRoot + this.username)}`);
 	                return;
 	            }
 	            let backups = Store.ls(`${dataRoot}${this.username}/${k}`);
 	            let latestTimestamp = [...backups.map(v => Number(v.slice(0, -5)))].sort().at(-1);
-	            console.log(`[${chalk.blue(curTime)}] Backup found from ${new Date(latestTimestamp).toLocaleString()}.`);
-	            console.log(`[${chalk.blue(curTime)}] You can access it at ${dataRoot}${this.username}/${k}/${latestTimestamp}.json`);
+	            this.log(`Backup found from ${new Date(latestTimestamp).toLocaleString()}.`);
+	            this.log(`You can access it at ${dataRoot}${this.username}/${k}/${latestTimestamp}.json`);
 	        });
 
 
 	    } else {
-	        console.log("This is not supposed to happen:", this.projects, "\np:", p);
+	        this.log("This is not supposed to happen: " + this.projects + " \np:", p);
 	    }
 	    this.projects = p;
 	}
@@ -131,7 +151,15 @@ export default class ProfileCache {
 	    let b = (await API.getUserProfile(this.username)).bio;
 	    if (this.bio !== b) {
 	        let curTime = new Date().toLocaleString();
-	        console.log(`[${chalk.blue(curTime)}] ${chalk.green(this.username)} ${chalk.gray.italic("changed his bio")}: '${b}'`);
+	        // this.log(`[${chalk.blue(curTime)}] ${chalk.green(this.username)} ${chalk.gray.italic("changed his bio")}: '${b}'`);
+	        this.log({embeds: [
+	        	new EmbedBuilder()
+	        		.setTitle("Activity monitor: Bio change")
+	        		.setColor(0x0099FF)
+	        		.setAuthor({name: this.username})
+	        		.setDescription(`${b}`)
+
+	        ]});
 	        Store.save("bio-history.json", JSON.stringify([{ timestamp: curTime, from: this.bio, to: b }]), `${dataRoot}${this.username}/`);
 	        this.bio = b;
 	    }
@@ -151,13 +179,13 @@ export default class ProfileCache {
 	    if (diff1.length > 0) {
 	        let data = diff1.map(v => f[A.indexOf(v)]);
 	        Store.save("comment-history.json", JSON.stringify([{ type: "new", timestamp: curTime, data: data}]), `${dataRoot}${this.username}/`)
-	        console.log(`${chalk.blue(curTime)} ${chalk.green(this.username)} ${chalk.gray.italic("made comment(s)")}`);
+	        this.log(`${chalk.blue(curTime)} ${chalk.green(this.username)} ${chalk.gray.italic("made comment(s)")}`);
 	    }
 
 	    if (diff2.length > 0) {
 	        let data = diff2.map(v => f[B.indexOf(v)]);
 	        Store.save("comment-history.json", JSON.stringify([{ type: "delete", timestamp: curTime, data: data}]), `${dataRoot}${this.username}/`)
-	        console.log(`${chalk.blue(curTime)} ${chalk.green(this.username)} ${chalk.gray.italic("deleted comment(s)")}`);
+	        this.log(`${chalk.blue(curTime)} ${chalk.green(this.username)} ${chalk.gray.italic("deleted comment(s)")}`);
 	    }
 	    
 	    this.feedback = f;
@@ -166,4 +194,4 @@ export default class ProfileCache {
 	async updateLoop() {
 		return Promise.all([this.checkBio(), this.checkProjects(), this.checkFeedbackByAuthor()]);
 	}
-}
+}	
