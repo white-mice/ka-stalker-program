@@ -158,6 +158,7 @@ export default class ProfileCache {
 	        		.setColor(0x0099FF)
 	        		.setAuthor({name: this.username})
 	        		.setDescription(`${b}`)
+	        		.setTimestamp()
 
 	        ]});
 	        Store.save("bio-history.json", JSON.stringify([{ timestamp: curTime, from: this.bio, to: b }]), `${dataRoot}${this.username}/`);
