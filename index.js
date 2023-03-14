@@ -4,7 +4,7 @@ import * as Bot from "./src/Bot.js";
 import stalkList from "./user-watchlist.json" assert {type: "json"}
 import KeywordWatcher from "./src/KeywordWatcher.js";
 
-import chalk from "chalk";
+// import chalk from "chalk";
 import express from "express";
 
 // Tick rate in milliseconds
@@ -35,7 +35,7 @@ cache = await Promise.all(cache);
 
 // Initializing
 app.get("/", (req, res) => { res.send("Hello, world!") });
-app.listen(3000, () => console.log(chalk.blue("Starting project stalker...")));
+app.listen(3000, () => console.log("Starting project stalker..."));
 setInterval(
   async () => {
     await Promise.all(cache.map(v => v.updateLoop()));
