@@ -1,7 +1,8 @@
 import ProfileCache from "./src/ProfileCache.js";
 import Store from "./src/Store.js";
-import * as Bot from "./src/bot.js";
-import stalkList from "./stalkList.json" assert {type:"json"}
+import * as Bot from "./src/Bot.js";
+import stalkList from "./user-watchlist.json" assert {type: "json"}
+import KeywordWatcher from "./src/KeywordWatcher.js";
 
 import chalk from "chalk";
 import express from "express";
@@ -17,18 +18,26 @@ const app = express();
 // Discord client
 const dc = await Bot.login();
 
+// Keyword watcher
+const keywordWatcher = KeywordWatcher(dc);
+
 const createdFolders = Store.ls(Store.dataRoot);
 let cache = [];
 
 for (const v of stalkList) {
-    cache.push((await new ProfileCache(v, dc)));
-    if (!createdFolders.includes(v)) {
-        Store.newDir(Store.dataRoot + v);
-    }
+  cache.push(new ProfileCache(v, dc));
+  if (!createdFolders.includes(v)) {
+    Store.newDir(Store.dataRoot + v);
+  }
 }
 
+cache = await Promise.all(cache);
 
 // Initializing
-app.get("/", (req, res) => {res.send("Hello, world!")});
+app.get("/", (req, res) => { res.send("Hello, world!") });
 app.listen(3000, () => console.log(chalk.blue("Starting project stalker...")));
-setInterval(async() => Promise.all(cache.map(v => v.updateLoop())), tickRate);
+setInterval(
+  async () => {
+    await Promise.all(cache.map(v => v.updateLoop()));
+    await keywordWatcher();
+  }, tickRate);

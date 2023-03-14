@@ -1,7 +1,9 @@
 import * as API from "./API.js";
-import {createHash} from "crypto";
+import { createHash } from "crypto";
+import secrets from "../secrets.json" assert {type: "json"}
+import keywords from "../keyword-watchlist.json" assert {type: "json"}
 
-const feedback = async() => (await Promise.all([
+const feedback = async () => (await Promise.all([
   API.allFeedback("COMMENT"),
   // API.allFeedback("REPLY"),
   // API.allFeedback("ANSWER"),
@@ -19,17 +21,19 @@ function extract(txt, word) {
   return (!!arr);
 }
 
-async function log(msg) {
-
+export default function KeywordWatcher(client) {
+  let log = (msg) => {
+    let c = client.channels.cache.get(secrets.CHANNEL_ID);
+    c.send(msg);
+  }
+  return async () => {
+    (await feedback()).forEach(comment => {
+      keywords.forEach(keyword => {
+        if (extract(comment.content, keyword) && !cache.includes(hash(comment))) {
+          cache.push(hash(comment))
+          log(`Keyword detected ${keyword}: https://khanacademy.org${comment.permalink}?qa_expand_key=${comment.expandKey}`);
+        }
+      });
+    })
+  };
 }
-
-async function mainLoop() {
-  (await feedback()).forEach(v => {
-    if (extract(v.content, "Taco Bell") && !cache.includes(hash(v))) {
-      cache.push(hash(v))
-      console.log("detected:", `https://khanacademy.org${v.permalink}?qa_expand_key=${v.expandKey}`);
-    }
-  });
-}
-
-while (true) { await mainLoop(); await sleep(1000); }

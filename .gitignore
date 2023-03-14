@@ -1,3 +1,5 @@
 secrets.json
 .megarc
 node_modules/
+user-watchlist.json
+keyword-watchlist.json
